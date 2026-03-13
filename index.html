@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>RegresionAR</title>
+
+  <!-- ✅ Versiones compatibles y probadas -->
+  <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.3.0/dist/aframe-master.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/3.4.5/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;500;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --verde:  #00c897;
+      --azul:   #1a73e8;
+      --rojo:   #ff4757;
+      --oscuro: #0d1117;
+      --gris:   #1e2530;
+      --texto:  #e8edf4;
+      --accent: #f7c948;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--oscuro);
+      color: var(--texto);
+      overflow: hidden;
+    }
+
+    /* ── SPLASH ── */
+    #splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--oscuro);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px; padding: 28px;
+      transition: opacity 0.5s ease;
+    }
+    #splash.oculto { opacity: 0; pointer-events: none; }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 2.6rem; font-weight: 700;
+      color: var(--verde); letter-spacing: -2px;
+    }
+    .logo span { color: var(--accent); }
+
+    .badge {
+      background: var(--gris);
+      border: 1px solid #2e3a4e;
+      border-radius: 8px;
+      padding: 5px 14px;
+      font-size: 0.72rem;
+      color: #7a8a9e;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .titulo {
+      font-size: 1.4rem; font-weight: 700;
+      text-align: center; line-height: 1.3;
+    }
+    .titulo em { color: var(--verde); font-style: normal; }
+
+    .desc {
+      font-size: 0.9rem; color: #8a9ab5;
+      text-align: center; max-width: 300px; line-height: 1.6;
+    }
+
+    .pasos {
+      background: var(--gris);
+      border-radius: 14px;
+      padding: 18px 22px;
+      width: 100%; max-width: 340px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .paso { display: flex; align-items: center; gap: 12px; font-size: 0.88rem; }
+    .num {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--azul);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+    }
+
+    .btn-iniciar {
+      background: var(--verde); color: #000;
+      border: none; border-radius: 12px;
+      padding: 15px 36px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem; font-weight: 700;
+      cursor: pointer;
+      width: 100%; max-width: 340px;
+      box-shadow: 0 4px 20px rgba(0,200,151,0.4);
+      transition: transform 0.15s;
+    }
+    .btn-iniciar:active { transform: scale(0.97); }
+
+    /* ── AR SCENE siempre en DOM pero invisible visualmente hasta activar ── */
+    a-scene {
+      position: fixed; inset: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 0;
+    }
+
+    /* ── HUD ── */
+    #hud {
+      position: fixed; inset: 0; z-index: 1000;
+      pointer-events: none;
+      display: none;
+    }
+    #hud.activo { display: block; }
+
+    .hud-top {
+      position: absolute; top: 0; left: 0; right: 0;
+      background: linear-gradient(to bottom, rgba(13,17,23,0.88), transparent);
+      padding: 14px 18px 36px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .hud-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 1rem; font-weight: 700; color: var(--verde);
+    }
+    .hud-logo span { color: var(--accent); }
+
+    .estado { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: #8a9ab5; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--rojo); animation: pulso 1.4s infinite;
+    }
+    .dot.on { background: var(--verde); animation: none; }
+    @keyframes pulso { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .hud-bottom {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(13,17,23,0.92), transparent);
+      padding: 36px 16px 22px;
+      pointer-events: all;
+    }
+
+    .card {
+      background: rgba(30,37,48,0.93);
+      border: 1px solid #2e3a4e;
+      border-radius: 14px;
+      padding: 14px 16px;
+      backdrop-filter: blur(8px);
+      margin-bottom: 10px;
+    }
+    .card-titulo {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem; color: var(--accent);
+      letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .card-datos { font-size: 0.82rem; line-height: 1.5; }
+    .card-formula {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.88rem; color: var(--verde);
+      text-align: center; margin-top: 8px;
+    }
+
+    .btn-res {
+      background: var(--azul); color: #fff;
+      border: none; border-radius: 8px;
+      padding: 10px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; width: 100%;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .hint { text-align: center; font-size: 0.75rem; color: #4a5a6e; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="logo">Regresión<span>AR</span></div>
+  <div class="badge">Universidad Indoamérica · Estadística</div>
+  <div class="titulo">Aprende <em>Regresión Lineal</em><br>con Realidad Aumentada</div>
+  <p class="desc">Apunta tu cámara al marcador Hiro impreso y observa el gráfico 3D.</p>
+  <div class="pasos">
+    <div class="paso"><div class="num">1</div><span>Imprime la plantilla con el marcador Hiro</span></div>
+    <div class="paso"><div class="num">2</div><span>Pulsa <strong>Iniciar cámara</strong> y acepta permisos</span></div>
+    <div class="paso"><div class="num">3</div><span>Apunta al marcador y observa el gráfico ✨</span></div>
+  </div>
+  <button class="btn-iniciar" onclick="iniciarAR()">📷 Iniciar cámara</button>
+</div>
+
+<!-- ✅ A-SCENE siempre en el DOM (no usar display:none) -->
+<a-scene
+  embedded
+  arjs="sourceType: webcam; debugUIEnabled: false; patternRatio: 0.75;"
+  renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true;"
+  vr-mode-ui="enabled: false"
+>
+
+  <a-marker preset="hiro" id="marcador" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+
+    <!-- PLANO BASE -->
+    <a-plane rotation="-90 0 0" width="3.2" height="2.6"
+      color="#0d1117" opacity="0.75" position="0 0.01 0">
+    </a-plane>
+
+    <!-- ── EJES ── -->
+    <!-- Eje X -->
+    <a-cylinder color="#ff4757" radius="0.025" height="3.2"
+      rotation="0 0 90" position="0 0.03 0"></a-cylinder>
+    <!-- Eje Y vertical -->
+    <a-cylinder color="#1a73e8" radius="0.025" height="2.4"
+      position="0 1.2 0"></a-cylinder>
+    <!-- Flecha eje X -->
+    <a-cone color="#ff4757" radius-bottom="0.06" radius-top="0" height="0.18"
+      rotation="0 0 -90" position="1.65 0.03 0"></a-cone>
+    <!-- Flecha eje Y -->
+    <a-cone color="#1a73e8" radius-bottom="0.06" radius-top="0" height="0.18"
+      position="0 2.45 0"></a-cone>
+
+    <!-- Etiquetas -->
+    <a-text value="X (horas)" color="#ff4757" position="1.5 0.22 0"
+      scale="0.9 0.9 0.9" align="center"></a-text>
+    <a-text value="Y (nota)" color="#1a73e8" position="-0.55 2.3 0"
+      scale="0.9 0.9 0.9" align="center"></a-text>
+
+    <!-- Marcas eje X: 1-7 -->
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="-1.2 0.03 0"></a-cylinder>
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="-0.8 0.03 0"></a-cylinder>
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="-0.4 0.03 0"></a-cylinder>
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="0.0 0.03 0"></a-cylinder>
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="0.4 0.03 0"></a-cylinder>
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="0.8 0.03 0"></a-cylinder>
+    <a-cylinder color="#ff4757" radius="0.015" height="0.12" rotation="0 0 90"
+      position="1.2 0.03 0"></a-cylinder>
+
+    <!-- Números eje X -->
+    <a-text value="1" color="#ff4757" position="-1.2 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+    <a-text value="2" color="#ff4757" position="-0.8 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+    <a-text value="3" color="#ff4757" position="-0.4 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+    <a-text value="4" color="#ff4757" position="0.0 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+    <a-text value="5" color="#ff4757" position="0.4 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+    <a-text value="6" color="#ff4757" position="0.8 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+    <a-text value="7" color="#ff4757" position="1.2 -0.18 0" scale="0.7 0.7 0.7" align="center"></a-text>
+
+    <!-- ── PUNTOS DE DATOS (amarillo) ── -->
+    <!-- Escala: posX = (xi - 4)*0.4,  posY = yi * 0.18 -->
+    <!-- (1,2.1) → (-1.2, 0.378) -->
+    <a-sphere color="#f7c948" radius="0.09" position="-1.2 0.378 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+    <!-- (2,3.8) → (-0.8, 0.684) -->
+    <a-sphere color="#f7c948" radius="0.09" position="-0.8 0.684 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+    <!-- (3,5.2) → (-0.4, 0.936) -->
+    <a-sphere color="#f7c948" radius="0.09" position="-0.4 0.936 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+    <!-- (4,7.1) → (0.0, 1.278) -->
+    <a-sphere color="#f7c948" radius="0.09" position="0.0 1.278 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+    <!-- (5,8.9) → (0.4, 1.602) -->
+    <a-sphere color="#f7c948" radius="0.09" position="0.4 1.602 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+    <!-- (6,10.2) → (0.8, 1.836) -->
+    <a-sphere color="#f7c948" radius="0.09" position="0.8 1.836 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+    <!-- (7,12.0) → (1.2, 2.160) -->
+    <a-sphere color="#f7c948" radius="0.09" position="1.2 2.160 0" material="emissive:#f7c948; emissiveIntensity:0.3"></a-sphere>
+
+    <!-- ── RECTA DE REGRESIÓN (verde) ── -->
+    <!-- ŷ = 1.66x + 0.46 -->
+    <!-- En x=1 → ŷ=2.12, en x=7 → ŷ=12.08 -->
+    <!-- Centrada en x=4 → ŷ=7.1, longitud en escala ≈ 2.82 unidades -->
+    <!-- Ángulo: atan(Δy/Δx) en escala = atan((2.16-0.378)/2.4) ≈ atan(0.743) ≈ 36.5° -->
+    <a-cylinder
+      id="recta"
+      color="#00c897"
+      radius="0.045"
+      height="2.85"
+      rotation="0 0 -36.5"
+      position="0 1.269 0"
+      material="emissive:#00c897; emissiveIntensity:0.4; opacity:1">
+    </a-cylinder>
+
+    <!-- ── RESIDUOS (rojo) — líneas verticales desde punto hasta recta ── -->
+    <!-- Predicciones: ŷ(1)=2.12, ŷ(2)=3.78, ŷ(3)=5.44, ŷ(4)=7.10, ŷ(5)=8.76, ŷ(6)=10.42, ŷ(7)=12.08 -->
+    <!-- En escala Y *0.18: 0.382, 0.680, 0.979, 1.278, 1.577, 1.876, 2.174 -->
+    <a-cylinder id="res1" color="#ff6b7a" radius="0.018"
+      height="0.008" position="-1.2 0.380 0" opacity="0.9"></a-cylinder>
+    <a-cylinder id="res2" color="#ff6b7a" radius="0.018"
+      height="0.007" position="-0.8 0.682 0" opacity="0.9"></a-cylinder>
+    <a-cylinder id="res3" color="#ff6b7a" radius="0.018"
+      height="0.043" position="-0.4 0.957 0" opacity="0.9"></a-cylinder>
+    <a-cylinder id="res4" color="#ff6b7a" radius="0.018"
+      height="0.001" position="0.0 1.278 0" opacity="0.9"></a-cylinder>
+    <a-cylinder id="res5" color="#ff6b7a" radius="0.018"
+      height="0.025" position="0.4 1.590 0" opacity="0.9"></a-cylinder>
+    <a-cylinder id="res6" color="#ff6b7a" radius="0.018"
+      height="0.040" position="0.8 1.856 0" opacity="0.9"></a-cylinder>
+    <a-cylinder id="res7" color="#ff6b7a" radius="0.018"
+      height="0.014" position="1.2 2.167 0" opacity="0.9"></a-cylinder>
+
+    <!-- ── PANEL INFO flotante ── -->
+    <a-plane color="#0d1117" opacity="0.88" width="2.8" height="1.0"
+      position="0 3.3 0">
+    </a-plane>
+    <a-text value="y = 1.66x + 0.46" color="#00c897"
+      position="0 3.55 0.01" scale="1.5 1.5 1.5" align="center"></a-text>
+    <a-text value="R2 = 0.997   |   r = 0.998" color="#f7c948"
+      position="0 3.22 0.01" scale="0.92 0.92 0.92" align="center"></a-text>
+    <a-text value="Correlacion positiva muy fuerte" color="#8a9ab5"
+      position="0 2.98 0.01" scale="0.78 0.78 0.78" align="center"></a-text>
+
+  </a-marker>
+
+  <a-entity camera></a-entity>
+</a-scene>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-top">
+    <div class="hud-logo">Regresión<span>AR</span></div>
+    <div class="estado">
+      <div class="dot" id="dot"></div>
+      <span id="est">Buscando marcador…</span>
+    </div>
+  </div>
+
+  <div class="hud-bottom">
+    <div class="card">
+      <div class="card-titulo">📊 Horas de estudio vs Calificación</div>
+      <div class="card-datos">
+        <strong>X</strong> (horas): 1 · 2 · 3 · 4 · 5 · 6 · 7<br>
+        <strong>Y</strong> (nota): &nbsp;2.1 · 3.8 · 5.2 · 7.1 · 8.9 · 10.2 · 12.0
+      </div>
+      <div class="card-formula">ŷ = 1.66x + 0.46</div>
+    </div>
+    <button class="btn-res" onclick="toggleResiduos()">👁 Mostrar / Ocultar residuos</button>
+    <p class="hint">📌 Apunta al marcador Hiro de la hoja impresa</p>
+  </div>
+</div>
+
+<script>
+  // ── Ocultar splash y mostrar HUD ──
+  function iniciarAR() {
+    document.getElementById('splash').classList.add('oculto');
+    document.getElementById('hud').classList.add('activo');
+  }
+
+  // ── Eventos del marcador ──
+  window.addEventListener('load', () => {
+    const marcador = document.getElementById('marcador');
+    const dot = document.getElementById('dot');
+    const est = document.getElementById('est');
+
+    marcador.addEventListener('markerFound', () => {
+      dot.classList.add('on');
+      est.textContent = '✅ Marcador detectado';
+    });
+    marcador.addEventListener('markerLost', () => {
+      dot.classList.remove('on');
+      est.textContent = 'Buscando marcador…';
+    });
+  });
+
+  // ── Toggle residuos ──
+  let resVisible = true;
+  function toggleResiduos() {
+    resVisible = !resVisible;
+    ['res1','res2','res3','res4','res5','res6','res7'].forEach(id => {
+      document.getElementById(id).setAttribute('visible', resVisible);
+    });
+  }
+</script>
+</body>
+</html>
